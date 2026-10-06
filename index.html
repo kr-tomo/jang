@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#17120d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="장기">
+<title>장기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app" class="port">
+  <section id="han" class="side" data-side="han"></section>
+  <main id="boardWrap">
+    <div id="board">
+      <div id="marks"></div>
+      <div id="pieces"></div>
+      <div id="over"></div>
+      <div id="toast" aria-live="polite"></div>
+      <button id="startBtn" class="pill" hidden>대국 시작</button>
+    </div>
+  </main>
+  <section id="cho" class="side" data-side="cho"></section>
+  <nav id="controls">
+    <button id="btnUndo" class="ctl" aria-label="무르기"><span class="ico">↶</span><span class="lbl">무르기</span></button>
+    <button id="btnPass" class="ctl" aria-label="한수쉼"><span class="ico">⏭</span><span class="lbl">한수쉼</span></button>
+    <button id="btnRules" class="ctl" aria-label="규칙 옵션"><span class="ico">⚙</span><span class="lbl">옵션</span></button>
+    <button id="btnMenu" class="ctl" aria-label="메뉴"><span class="ico">☰</span><span class="lbl">메뉴</span></button>
+  </nav>
+</div>
+
+<!-- 시작 화면 -->
+<div id="home" class="overlay show">
+  <div class="panel home-panel">
+    <div class="logo"><div class="logo-main">장기</div><div class="logo-sub">將棋</div></div>
+    <div class="stack">
+      <button class="big" data-mode="pvp">둘이서 두기<small>2인 대국</small></button>
+      <button class="big" data-mode="easy">컴퓨터와 두기<small>쉬움</small></button>
+      <button class="big" data-mode="hard">컴퓨터와 두기<small>어려움</small></button>
+    </div>
+    <div id="sidePick" class="seg-row">
+      <span class="seg-label">내 진영</span>
+      <div class="seg" data-key="human">
+        <button data-val="cho" class="on">초 (선공)</button>
+        <button data-val="han">한 (후공)</button>
+      </div>
+    </div>
+    <div class="row">
+      <button id="homeRules" class="ghost">규칙 옵션</button>
+      <button id="homeResume" class="ghost" hidden>이어하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 규칙 옵션 -->
+<div id="rulesSheet" class="overlay">
+  <div class="panel sheet">
+    <h2>규칙 옵션</h2>
+    <p class="note">변경한 규칙은 이미 둔 수에는 적용되지 않고, 이후 두는 수부터 적용됩니다.</p>
+    <div id="rulesList"></div>
+    <h3>화면</h3>
+    <div id="displayList"></div>
+    <button class="primary" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 메뉴 -->
+<div id="menuSheet" class="overlay">
+  <div class="panel sheet narrow">
+    <h2>메뉴</h2>
+    <button class="list-btn" id="mNew">새 판 (같은 모드)</button>
+    <button class="list-btn" id="mHome">모드 바꾸기</button>
+    <button class="list-btn danger" id="mResign">기권</button>
+    <button class="primary" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 결과 -->
+<div id="resultSheet" class="overlay">
+  <div class="panel sheet narrow">
+    <h2 id="resTitle"></h2>
+    <p id="resText" class="res-text"></p>
+    <button class="primary" id="resNew">새 판 시작</button>
+    <button class="ghost" id="resView">판 보기</button>
+  </div>
+</div>
+
+<script src="theme.js"></script>
+<script src="layout.js"></script>
+<script src="engine.js"></script>
+<script src="ai.js"></script>
+<script src="game.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
