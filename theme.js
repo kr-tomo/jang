@@ -10,7 +10,7 @@
  *  - pieces: 시트 크기와 frames["진영.종류"] = {x,y,w,h}
  *            진영: cho(초) / han(한), 종류: K 장, R 차, C 포, N 마, E 상, G 사, P 졸·병
  *            scale = 한 칸(cell) 대비 말 한 프레임을 그리는 크기 배율
- *  - markers: select(선택) from/to(직전 수) dot(이동 가능) capture(잡기) check(장군)
+ *  - markers: select(선택) from/to(직전 수) dot(이동 가능) capture(잡기) check(장군) hint(훈수)
  */
 (function (root) {
   var PF = 192, MF = 128;
@@ -20,7 +20,7 @@
     types.forEach(function (t, i) { pf[side + '.' + t] = { x: i * PF, y: row * PF, w: PF, h: PF }; });
   });
   var mf = {};
-  ['select', 'from', 'to', 'dot', 'capture', 'check'].forEach(function (n, i) {
+  ['select', 'from', 'to', 'dot', 'capture', 'check', 'hint'].forEach(function (n, i) {
     mf[n] = { x: i * MF, y: 0, w: MF, h: MF };
   });
 
@@ -28,7 +28,7 @@
     name: '기본 (나무판)',
     board: { image: 'assets/board.svg', width: 920, height: 1020, originX: 60, originY: 60, cell: 100 },
     pieces: { image: 'assets/pieces.svg', sheetW: PF * 7, sheetH: PF * 2, scale: 1.0, frames: pf },
-    markers: { image: 'assets/markers.svg', sheetW: MF * 6, sheetH: MF, scale: 1.0, frames: mf },
+    markers: { image: 'assets/markers.svg', sheetW: MF * 7, sheetH: MF, scale: 1.0, frames: mf },
     colors: { cho: '#2a8a5a', han: '#d2473d' },
   };
 })(typeof self !== 'undefined' ? self : this);

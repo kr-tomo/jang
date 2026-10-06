@@ -1,5 +1,5 @@
 /* 오프라인 캐시 서비스 워커. 파일을 고치면 VERSION 을 올려 주세요. */
-const VERSION = 'janggi-v1';
+const VERSION = 'janggi-v2';
 const FILES = [
   './', 'index.html', 'style.css', 'theme.js', 'layout.js', 'engine.js', 'ai.js', 'game.js', 'app.js', 'worker.js',
   'manifest.webmanifest',

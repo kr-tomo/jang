@@ -83,8 +83,15 @@ const tap = (r, c, flip) => {
   ok(!!dbg, '초기화 성공');
   ok(registry.app._styleProps['--bw'] && registry.app.classList.contains('port'), '레이아웃 변수 설정 (' + registry.app._styleProps['--bw'] + ', 세로 배치)');
   ok(registry.pieces.children.length === 32, '말 32개 렌더 (' + registry.pieces.children.length + ')');
-  ok(registry.cho.querySelector('.setup').children.length === 4, '상차림 선택 4개');
+  ok(registry.cho.querySelector('.setup').children.length === 5, '상차림 선택 4개 + 훈수 토글');
 
+  // 훈수 토글: 누를 때마다 +1, 5 다음은 0
+  const hintTog = (side) => registry[side].querySelector('.setup').children.find((c) => c.classList.contains('hintTog'));
+  ok(!!hintTog('cho') && !!hintTog('han'), '훈수 토글 버튼 존재');
+  const seen = [];
+  for (let i = 0; i < 7; i++) { hintTog('cho').fire('click'); seen.push(dbg.st.game.hintsLeft(1)); }
+  ok(JSON.stringify(seen) === JSON.stringify([1, 2, 3, 4, 5, 0, 1]), '훈수 횟수 순환 ' + seen);
+  ok(registry.btnHint.style.display === '', '훈수 횟수가 있으면 훈수 버튼 표시');
   // 컴퓨터(쉬움), 내가 초
   modeBtns.find((b) => b.dataset.mode === 'easy').fire('click');
   ok(dbg.st.mode === 'easy' && dbg.st.game.ply === 0, '쉬움 모드 시작');
@@ -109,6 +116,28 @@ const tap = (r, c, flip) => {
   ok(dbg.st.game.ply === 2, '회전된 판에서 내 수');
   await sleep(2300);
   ok(dbg.st.game.ply === 3, '컴퓨터 응수 (ply=' + dbg.st.game.ply + ')');
+  // 훈수 (한으로 두는 판): 횟수 선택은 새 판 시작 전에 이미 정해 둠 → 새 판에서 확인
+  dbg.st.hintPref = { cho: 0, han: 2 };
+  dbg.st.human = -1; modeBtns.find((b) => b.dataset.mode === 'easy').fire('click');
+  ok(dbg.st.game.hintsLeft(-1) === 2 && dbg.st.game.hintsLeft(1) === 0, '컴퓨터 대국: 내 진영만 훈수 횟수 적용');
+  registry.startBtn.fire('click');
+  await sleep(1300);
+  ok(dbg.st.game.ply === 1 && !registry.btnHint.disabled, '내 차례에 훈수 버튼 활성');
+  registry.btnHint.fire('click');
+  await sleep(1500);
+  const hh = dbg.st.hint;
+  ok(!!hh && dbg.st.sel === hh.from && dbg.st.game.currentHint(), '훈수: 말 선택 + 도착 위치 표시');
+  tap(Math.floor(hh.to / 9), hh.to % 9, true);   // 훈수 위치를 눌러도 이동은 선택된 말 기준
+  ok(dbg.st.game.ply === 2 && dbg.st.game.hintsLeft(-1) === 1, '훈수대로 두면 횟수 차감 (남은 ' + dbg.st.game.hintsLeft(-1) + ')');
+  await sleep(1300);
+  // 다른 수 → 차감 없음
+  registry.btnHint.fire('click');
+  await sleep(1500);
+  const h2 = dbg.st.hint;
+  const other = dbg.st.game.legal().map((m) => [m & 127, m >> 7]).find(([f, t]) => !(f === h2.from && t === h2.to));
+  tap(Math.floor(other[0] / 9), other[0] % 9, true); tap(Math.floor(other[1] / 9), other[1] % 9, true);
+  ok(dbg.st.game.hintsLeft(-1) === 1, '다른 수를 두면 훈수 횟수 그대로');
+  await sleep(1300);
   // 한수쉼
   await sleep(100);
   registry.btnPass.fire('click');

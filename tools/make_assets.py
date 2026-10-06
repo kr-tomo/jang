@@ -81,7 +81,7 @@ def make_pieces():
 
 # ---------- 마커 스프라이트 시트 ----------
 MF = 128
-MARKERS = ['select', 'from', 'to', 'dot', 'capture', 'check']
+MARKERS = ['select', 'from', 'to', 'dot', 'capture', 'check', 'hint']
 
 def make_markers():
     W, H = MF * len(MARKERS), MF
@@ -110,6 +110,10 @@ def make_markers():
     cx, cy = cxy(5)
     o.append('<circle cx="%.0f" cy="%.0f" r="58" fill="none" stroke="#ff3b30" stroke-width="8" stroke-dasharray="14 9"/>' % (cx, cy))
     o.append('<circle cx="%.0f" cy="%.0f" r="58" fill="#ff3b30" opacity=".18"/>' % (cx, cy))
+    # hint (훈수): 하늘색 사각 테두리 + 옅은 채움
+    cx, cy = cxy(6)
+    o.append('<rect x="%.0f" y="%.0f" width="104" height="104" rx="20" fill="#35c4e8" opacity=".22"/>' % (cx - 52, cy - 52))
+    o.append('<rect x="%.0f" y="%.0f" width="104" height="104" rx="20" fill="none" stroke="#35c4e8" stroke-width="8"/>' % (cx - 52, cy - 52))
     o.append('</svg>')
     open(os.path.join(ROOT, 'assets', 'markers.svg'), 'w', encoding='utf-8').write('\n'.join(o))
 

@@ -182,3 +182,12 @@ h2 { margin: 0; font-size: 20px; } h3 { margin: 6px 0 0; font-size: 14px; color:
 .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; }
 .toggle[aria-checked="true"] { background: var(--cho); } .toggle[aria-checked="true"]::after { transform: translateX(20px); }
 .narrow { width: min(88vw, 340px); }
+
+/* ---------- 훈수 ---------- */
+.setup.h5 { grid-template-columns: repeat(5, 1fr); }
+.setup button { padding-left: 0; padding-right: 0; }
+.setup .hintTog { border: 1px solid #2f8fa8; color: #7fd6ea; background: #1f3036; }
+.setup .hintTog.on { background: #35c4e8; border-color: #35c4e8; color: #08262e; }
+#app.land .setup .hintTog { grid-column: 1 / -1; }
+.ctl.hint .lbl { color: #7fd6ea; }
+.ctl.hint:not(:disabled) { border-color: #2f8fa8; }

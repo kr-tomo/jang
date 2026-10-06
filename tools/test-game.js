@@ -152,6 +152,47 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL:', m); } 
   }
   ok(total === 64, '무작위 대국 ' + total + '판 실행, 종료 ' + finished + ' ' + JSON.stringify(overTypes));
 }
+// 8b. 훈수: 횟수 설정, 따라 두면 차감, 다른 수는 차감 없음, 무르기 복원, 저장
+{
+  const g = new Game({ hints: { cho: 2, han: 0 } });
+  ok(g.hintsLeft(CHO) === 2 && g.hintsLeft(HAN) === 0, '훈수 초기 횟수');
+  ok(g.setHints('han', 5) && g.hintsLeft(HAN) === 5, '첫 수 전 훈수 횟수 설정');
+  g.setSetup('cho', 'ENEN'); // 상차림 변경에도 유지
+  ok(g.hintsLeft(CHO) === 2 && g.hintsLeft(HAN) === 5, '상차림 변경 후에도 훈수 횟수 유지');
+  ok(g.canHint(), '훈수 가능');
+  // 훈수를 따라 두기
+  const m = J.mv(sq(6, 0), sq(5, 0));
+  g.setHint(m);
+  let r = g.move(sq(6, 0), sq(5, 0));
+  ok(r.ok && r.hintUsed && g.hintsLeft(CHO) === 1, '훈수대로 두면 차감');
+  ok(!g.setHints('cho', 3), '첫 수 뒤에는 훈수 횟수 변경 불가');
+  // 한 차례: 다른 수 → 차감 없음
+  g.setHint(J.mv(sq(3, 0), sq(4, 0)));
+  r = g.move(sq(3, 2), sq(4, 2));
+  ok(r.ok && !r.hintUsed && g.hintsLeft(HAN) === 5, '다른 수를 두면 차감 없음');
+  // 초 차례에서 훈수 받고 다른 수
+  g.setHint(J.mv(sq(6, 2), sq(5, 2)));
+  r = g.move(sq(6, 4), sq(5, 4));
+  ok(r.ok && !r.hintUsed && g.hintsLeft(CHO) === 1, '훈수 무시하면 횟수 그대로');
+  // 다른 국면용 훈수는 무효
+  g.setHint(J.mv(sq(3, 4), sq(4, 4)));
+  g.undo(1);
+  ok(g.currentHint() === null, '무르기 후 훈수 해제');
+  // 무르기 시 차감 복원
+  const g2 = new Game({ hints: { cho: 1, han: 0 } });
+  g2.setHint(m); g2.move(sq(6, 0), sq(5, 0));
+  ok(g2.hintsLeft(CHO) === 0 && !g2.canHint(), '횟수 소진');
+  g2.undo(1);
+  ok(g2.hintsLeft(CHO) === 1, '무르기로 훈수 횟수 복원');
+  // 저장/복원
+  g2.setHint(m); g2.move(sq(6, 0), sq(5, 0));
+  const g3 = Game.deserialize(JSON.parse(JSON.stringify(g2.serialize())));
+  ok(g3.hintsLeft(CHO) === 0 && g3.hintInit.cho === 1, '훈수 횟수 직렬화');
+  // 규칙 변경 시 훈수 해제 (이전 규칙 기준 추천이므로)
+  const g4 = new Game({ hints: { cho: 1, han: 1 } });
+  g4.setHint(m); g4.setRule('bikjang', false);
+  ok(g4.currentHint() === null, '규칙 변경 시 훈수 해제');
+}
 // 9. 레이아웃: 다양한 화면 비율에서 넘침 없음, 판이 최대
 {
   const R_ = 920 / 1020;

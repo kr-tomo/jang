@@ -16,12 +16,15 @@
       opts = opts || {};
       this.rules = Object.assign({}, DEFAULT_RULES, opts.rules || {});
       this.setup = { cho: (opts.setup && opts.setup.cho) || 'NEEN', han: (opts.setup && opts.setup.han) || 'NEEN' };
+      this.hintInit = Object.assign({ cho: 0, han: 0 }, opts.hints || {}); // 진영별 훈수 가능 횟수 (첫 수 전에 정함)
+      this.hint = null;                                                    // 현재 보여 준 훈수 {key, move}
       this.reset();
     }
 
     reset() {
       const board = J.initialBoard(this.setup.cho, this.setup.han);
-      this.states = [{ board, turn: CHO, passStreak: 0, last: null, over: null, check: false, passed: false, key: J.keyOf(board, CHO) }];
+      this.states = [{ board, turn: CHO, passStreak: 0, last: null, over: null, check: false, passed: false, key: J.keyOf(board, CHO), hints: Object.assign({}, this.hintInit) }];
+      this.hint = null;
       this.epoch = this.rules.repeat ? 0 : -1; // 반복 집계 시작 지점 (-1 = 집계 안 함)
     }
 
@@ -37,8 +40,23 @@
     }
 
     /* 규칙 변경은 앞으로 두는 수부터 적용된다. 반복 집계만 현재 국면부터 새로 시작. */
+    /* ---------- 훈수 ---------- */
+    setHints(side, n) { // 첫 수 전에만
+      if (this.started) return false;
+      n = Math.max(0, Math.min(5, n | 0));
+      this.hintInit[side] = n;
+      this.states[0].hints[side] = n;
+      return true;
+    }
+    hintsLeft(color) { return this.cur.hints[color === CHO ? 'cho' : 'han']; }
+    canHint() { return !this.cur.over && this.hintsLeft(this.cur.turn) > 0; }
+    setHint(move) { this.hint = { key: this.cur.key, move }; }
+    clearHint() { this.hint = null; }
+    currentHint() { return this.hint && this.hint.key === this.cur.key ? this.hint : null; }
+
     setRule(name, value) {
       const prev = this.rules[name];
+      this.hint = null;
       this.rules[name] = value;
       if (name === 'repeat' && prev !== value) this.epoch = value ? this.states.length - 1 : -1;
     }
@@ -89,12 +107,18 @@
       const mover = c.turn;
       const isPass = m === J.PASS;
       const captured = isPass ? 0 : c.board[J.mvTo(m)];
+      // 훈수를 따라 둔 경우에만 횟수 차감
+      const sk = mover === CHO ? 'cho' : 'han';
+      const hintUsed = !isPass && !!this.hint && this.hint.key === c.key && this.hint.move === m && (c.hints ? c.hints[sk] : 0) > 0;
+      const hints = Object.assign({ cho: 0, han: 0 }, c.hints);
+      if (hintUsed) hints[sk]--;
+      this.hint = null;
       pos.make(m);
       const board = new Int8Array(pos.b);
       const next = {
         board, turn: pos.turn, passStreak: isPass ? c.passStreak + 1 : 0,
         last: isPass ? null : [J.mvFrom(m), J.mvTo(m)], over: null, check: false, passed: isPass,
-        key: J.keyOf(board, pos.turn),
+        key: J.keyOf(board, pos.turn), hints,
       };
       this.states.push(next);
       let needPass = false;
@@ -115,7 +139,7 @@
           if (n >= 3 && this.rules.repeat) next.over = { type: 'repeat', winner: 0 };
         }
       }
-      return { ok: true, mover, captured, check: next.check, over: next.over, needPass, pass: isPass, forced: !!forced };
+      return { ok: true, mover, captured, check: next.check, over: next.over, needPass, pass: isPass, forced: !!forced, hintUsed };
     }
 
     resign(color) {
@@ -127,6 +151,7 @@
 
     undo(n) {
       n = n || 1;
+      this.hint = null;
       let k = 0;
       while (k < n && this.states.length > 1) { this.states.pop(); k++; }
       if (this.epoch >= this.states.length) this.epoch = this.rules.repeat ? this.states.length - 1 : -1;
@@ -150,16 +175,16 @@
 
     serialize() {
       return {
-        v: 1, rules: this.rules, setup: this.setup, epoch: this.epoch,
-        states: this.states.map((s) => ({ b: pack(s.board), t: s.turn, ps: s.passStreak, l: s.last, o: s.over, c: s.check ? 1 : 0, p: s.passed ? 1 : 0 })),
+        v: 1, rules: this.rules, setup: this.setup, epoch: this.epoch, hintInit: this.hintInit,
+        states: this.states.map((s) => ({ b: pack(s.board), t: s.turn, ps: s.passStreak, l: s.last, o: s.over, c: s.check ? 1 : 0, p: s.passed ? 1 : 0, h: [s.hints.cho, s.hints.han] })),
       };
     }
     static deserialize(d) {
-      const g = new Game({ rules: d.rules, setup: d.setup });
+      const g = new Game({ rules: d.rules, setup: d.setup, hints: d.hintInit });
       g.epoch = d.epoch;
       g.states = d.states.map((s) => {
         const board = unpack(s.b);
-        return { board, turn: s.t, passStreak: s.ps, last: s.l, over: s.o, check: !!s.c, passed: !!s.p, key: J.keyOf(board, s.t) };
+        return { board, turn: s.t, passStreak: s.ps, last: s.l, over: s.o, check: !!s.c, passed: !!s.p, key: J.keyOf(board, s.t), hints: { cho: s.h ? s.h[0] : 0, han: s.h ? s.h[1] : 0 } };
       });
       return g;
     }

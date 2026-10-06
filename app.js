@@ -17,6 +17,9 @@
     rules: { bikjang: true, pass: true, score: false, repeat: true },
     display: { flipTop: false },
     setupPref: 'NEEN',
+    hintPref: { cho: 0, han: 0 },   // 진영별 훈수 횟수 (다음 판에도 기억)
+    hint: null, hintBusy: false, hintId: 0,
+    cbs: {}, reqId: 0,
     worker: null, workerOk: true,
   };
   const els = new Array(90).fill(null);   // 칸 → 말 요소
@@ -26,7 +29,7 @@
   /* ---------- 저장 ---------- */
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 무시 */ } }
-  function saveSettings() { lsSet(SET_KEY, { rules: st.rules, display: st.display, mode: st.mode, human: st.human, setupPref: st.setupPref }); }
+  function saveSettings() { lsSet(SET_KEY, { rules: st.rules, display: st.display, mode: st.mode, human: st.human, setupPref: st.setupPref, hintPref: st.hintPref }); }
   function saveGame() {
     if (!st.game) return;
     lsSet(SAVE_KEY, { mode: st.mode, human: st.human, begun: st.begun, game: st.game.serialize() });
@@ -98,6 +101,10 @@
       const ks = J.Position.fromArray(c.board, c.turn).kingSq(c.turn);
       if (ks >= 0) addMarker('marks', 'check', ks, 'pulse');
     }
+    if (st.hint && g.currentHint()) { // 훈수: 움직일 말과 도착 위치
+      addMarker('over', 'hint', st.hint.from);
+      addMarker('over', 'hint', st.hint.to, 'pulse');
+    }
     if (st.sel != null) {
       addMarker('over', 'select', st.sel);
       for (const t of st.targets) addMarker('over', c.board[t] ? 'capture' : 'dot', t);
@@ -118,6 +125,17 @@
       b.addEventListener('click', () => chooseSetup(color, s.id));
       setup.appendChild(b);
     });
+    const h = document.createElement('button');
+    h.className = 'hintTog'; h.setAttribute('aria-label', '훈수 횟수 선택');
+    h.addEventListener('click', () => cycleHints(color));
+    setup.appendChild(h);
+  }
+  function cycleHints(color) { // 누를 때마다 +1, 5를 넘으면 0
+    if (!setupOpen() || !isHumanSide(color)) return;
+    const g = st.game, key = color === CHO ? 'cho' : 'han';
+    const n = g.hintsLeft(color) + 1, v = n > 5 ? 0 : n;
+    g.setHints(key, v); st.hintPref[key] = v; saveSettings();
+    renderAll();
   }
   function isHumanSide(color) { return st.mode === 'pvp' || color === st.human; }
   function setupOpen() { return !st.game.started && !st.begun; }
@@ -140,19 +158,29 @@
       if (open) txt = '상차림';
       else if (!c.over && c.turn === color) {
         if (st.thinking && !isHumanSide(color)) txt = '생각 중…';
+        else if (st.hintBusy) txt = '훈수 생각 중…';
         else if (c.check) { txt = '장군!'; cls += ' check'; }
         else txt = '차례';
       }
       sub.textContent = txt; sub.className = cls;
       const p = color === CHO ? pts.cho : pts.han;
-      root.querySelector('.pts').textContent = '기물 ' + (color === HAN && st.game.rules.score ? pts.hanRaw + '+1.5' : p) + '점';
+      const hk = color === CHO ? 'cho' : 'han';
+      const hintTxt = (isHumanSide(color) && g.hintInit[hk] > 0) ? ' · 훈수 ' + g.hintsLeft(color) : '';
+      root.querySelector('.pts').textContent = '기물 ' + (color === HAN && st.game.rules.score ? pts.hanRaw + '+1.5' : p) + '점' + hintTxt;
       // 상차림 선택 / 잡은 말
       const setup = root.querySelector('.setup'), capsEl = root.querySelector('.caps');
       setup.style.display = open ? '' : 'none';
       capsEl.style.display = open ? 'none' : '';
       if (open) {
         const cur = g.setup[color === CHO ? 'cho' : 'han'];
+        setup.classList.toggle('h5', isHumanSide(color));
         setup.querySelectorAll('button').forEach((b) => {
+          if (b.classList.contains('hintTog')) {
+            const n = g.hintsLeft(color);
+            b.textContent = '훈수 ' + n; b.classList.toggle('on', n > 0);
+            b.style.display = isHumanSide(color) ? '' : 'none';
+            return;
+          }
           b.classList.toggle('on', b.dataset.id === cur);
           b.disabled = !isHumanSide(color);
         });
@@ -177,6 +205,11 @@
     $('btnUndo').disabled = g.ply === 0 && !c.over;
     $('btnPass').disabled = !(humanTurn && !c.over && g.started && g.canPass());
     $('btnPass').style.display = g.rules.pass ? '' : 'none';
+    const anyHint = (g.hintInit.cho + g.hintInit.han) > 0;
+    const aiWait = st.mode !== 'pvp' && st.human === HAN && !st.begun;
+    $('btnHint').style.display = anyHint ? '' : 'none';
+    $('hintLbl').textContent = '훈수 ' + (isHumanSide(c.turn) ? g.hintsLeft(c.turn) : 0);
+    $('btnHint').disabled = !(humanTurn && !st.hintBusy && !aiWait && g.canHint());
     const aiFirst = st.mode !== 'pvp' && st.human === HAN;
     $('startBtn').hidden = !(aiFirst && setupOpen());
   }
@@ -223,6 +256,7 @@
     renderAll();
     if (res.pass) toast(res.forced ? '둘 수 있는 수가 없어 한수쉼' : '한수쉼');
     else if (res.check && !res.over) toast('장군!', true);
+    else if (res.hintUsed) toast('훈수대로 두었어요 · 남은 ' + st.game.hintsLeft(res.mover) + '회');
     if (res.over) { st.thinking = false; renderAll(); setTimeout(() => showResult(res.over), 650); return; }
     if (res.needPass) {
       const t = ++st.token;
@@ -242,6 +276,7 @@
     if (!res.ok) return false;
     st.begun = true;
     st.sel = null; st.targets = null;
+    cancelHint(); st.hint = null;
     animateMove(from, to);
     afterMove(res);
     return true;
@@ -253,18 +288,49 @@
     requestAI();
   }
 
+  /* 계산 요청: 웹 워커(가능하면) 또는 메인 스레드 */
+  function runSearch(msg, cb) {
+    const id = ++st.reqId; msg.id = id;
+    st.cbs[id] = { cb, msg };
+    if (st.workerOk && window.Worker && location.protocol !== 'file:') {
+      try {
+        if (!st.worker) {
+          st.worker = new Worker('worker.js');
+          st.worker.onmessage = (e) => { const r = st.cbs[e.data.id]; if (r) { delete st.cbs[e.data.id]; r.cb(e.data.move); } };
+          st.worker.onerror = () => {
+            st.workerOk = false; st.worker = null;
+            const pend = st.cbs; st.cbs = {};
+            Object.keys(pend).forEach((k) => localSearch(pend[k].msg, pend[k].cb));
+          };
+        }
+        st.worker.postMessage(msg);
+        return;
+      } catch (e) { st.workerOk = false; st.worker = null; }
+    }
+    delete st.cbs[id];
+    localSearch(msg, cb);
+  }
+  function localSearch(msg, cb) {
+    const m2 = Object.assign({}, msg, { timeMs: Math.min(msg.timeMs, 900) });
+    setTimeout(() => { cb(window.JanggiAI.chooseMove(m2.board, m2.turn, m2).move); }, 40);
+  }
+  function stopSearches() { // 진행 중인 모든 계산 취소
+    st.cbs = {};
+    if (st.worker) { st.worker.terminate(); st.worker = null; }
+  }
+
   function requestAI() {
     const g = st.game, c = g.cur;
     st.thinking = true; renderInfo(); renderControls();
     const id = ++st.token;
     const hard = st.mode === 'hard';
     const msg = {
-      id, board: Array.from(c.board), turn: c.turn, level: st.mode, rules: Object.assign({}, g.rules),
+      board: Array.from(c.board), turn: c.turn, level: st.mode, rules: Object.assign({}, g.rules),
       repCounts: g.repCounts(), repOn: g.rules.repeat && g.epoch >= 0,
       timeMs: hard ? 1800 : 80, maxDepth: hard ? 8 : 1,
     };
     const t0 = Date.now();
-    const done = (move) => {
+    runSearch(msg, (move) => {
       if (id !== st.token) return;
       const wait = Math.max(0, 520 - (Date.now() - t0));
       setTimeout(() => {
@@ -278,29 +344,42 @@
         animateMove(from, to);
         afterMove(res);
       }, wait);
-    };
-    if (st.workerOk && window.Worker && location.protocol !== 'file:') {
-      try {
-        if (!st.worker) {
-          st.worker = new Worker('worker.js');
-          st.worker.onmessage = (e) => { if (st.pending) st.pending(e.data.move, e.data.id); };
-          st.worker.onerror = () => { st.workerOk = false; st.worker = null; fallback(); };
-        }
-        st.pending = (move, rid) => { if (rid === id) done(move); };
-        st.worker.postMessage(msg);
-        return;
-      } catch (e) { st.workerOk = false; }
-    }
-    fallback();
-    function fallback() {
-      if (id !== st.token) return;
-      msg.timeMs = hard ? 900 : 60;
-      setTimeout(() => {
-        if (id !== st.token) return;
-        const r = window.JanggiAI.chooseMove(c.board, c.turn, msg);
-        done(r.move);
-      }, 40);
-    }
+    });
+  }
+
+  /* ---------- 훈수 (어려움 컴퓨터 수준) ---------- */
+  const PIECE_KO = ['', '장', '차', '포', '마', '상', '사'];
+  function cancelHint() {
+    if (st.hintBusy) { st.hintBusy = false; st.hintId++; stopSearches(); }
+  }
+  function clearHint() { cancelHint(); st.hint = null; if (st.game) st.game.clearHint(); }
+  function requestHint() {
+    const g = st.game, c = g.cur;
+    if (c.over || st.thinking || st.hintBusy || !isHumanSide(c.turn) || !g.canHint()) return;
+    if (st.mode !== 'pvp' && st.human === HAN && !st.begun) return;
+    const cached = g.currentHint();
+    if (cached) { showHint(cached.move); return; }  // 같은 국면에서는 같은 훈수
+    st.hintBusy = true;
+    const hid = ++st.hintId, key = c.key;
+    renderInfo(); renderControls();
+    runSearch({
+      board: Array.from(c.board), turn: c.turn, level: 'hard', rules: Object.assign({}, g.rules),
+      repCounts: g.repCounts(), repOn: g.rules.repeat && g.epoch >= 0, timeMs: 1800, maxDepth: 8,
+    }, (move) => {
+      if (hid !== st.hintId) return;
+      st.hintBusy = false;
+      if (st.game.cur.key !== key || move === J.PASS) { renderAll(); return; }
+      st.game.setHint(move);
+      showHint(move);
+    });
+  }
+  function showHint(move) {
+    const g = st.game, from = J.mvFrom(move), to = J.mvTo(move), p = g.cur.board[from];
+    st.hint = { from, to };
+    st.sel = from; st.targets = g.legalFrom(from);   // 훈수 말을 선택해 둔다
+    const name = Math.abs(p) === 7 ? (p > 0 ? '졸' : '병') : PIECE_KO[Math.abs(p)];
+    toast('훈수 · ' + name + (g.cur.board[to] ? ' (잡기)' : ''));
+    renderAll();
   }
 
   /* ---------- 입력 ---------- */
@@ -326,6 +405,7 @@
 
   function chooseSetup(color, id) {
     if (!setupOpen() || !isHumanSide(color)) return;
+    clearHint();
     st.game.setSetup(color === CHO ? 'cho' : 'han', id);
     if (st.mode === 'pvp' || color === st.human) { st.setupPref = id; saveSettings(); }
     rebuildPieces(); renderAll();
@@ -334,12 +414,15 @@
   /* ---------- 새 게임 ---------- */
   function randomSetup() { return J.SETUPS[(Math.random() * 4) | 0].id; }
   function newGame() {
-    st.token++; st.thinking = false; st.sel = null; st.targets = null;
+    st.token++; st.thinking = false; st.sel = null; st.targets = null; st.hint = null; st.hintBusy = false; st.hintId++; stopSearches();
     st.flip = st.mode !== 'pvp' && st.human === HAN;
+    const hints = { cho: 0, han: 0 };
+    if (st.mode === 'pvp') { hints.cho = st.hintPref.cho; hints.han = st.hintPref.han; }
+    else { const hk = st.human === CHO ? 'cho' : 'han'; hints[hk] = st.hintPref[hk]; }
     const setup = { cho: randomSetup(), han: randomSetup() };
     if (st.mode === 'pvp') { setup.cho = st.setupPref; setup.han = st.setupPref; }
     else setup[st.human === CHO ? 'cho' : 'han'] = st.setupPref;
-    st.game = new Game({ rules: st.rules, setup });
+    st.game = new Game({ rules: st.rules, setup, hints });
     st.begun = false;
     st.game.rules = st.rules; // 같은 객체 공유 (옵션 변경 즉시 반영)
     rebuildPieces(); renderAll();
@@ -354,7 +437,7 @@
       st.game = Game.deserialize(d.game);
       st.game.rules = st.rules; // 현재 규칙 옵션 사용
       st.begun = !!d.begun || st.game.started;
-      st.token++; st.thinking = false; st.sel = null; st.targets = null;
+      st.token++; st.thinking = false; st.sel = null; st.targets = null; st.hint = null; st.hintBusy = false; st.hintId++; stopSearches();
       rebuildPieces(); renderAll();
       closeOverlay('home');
       if (st.game.cur.over) setTimeout(() => showResult(st.game.cur.over), 300);
@@ -392,6 +475,7 @@
   function buildOptions() {
     buildToggles('rulesList', RULE_DEFS, st.rules, (k, v) => {
       if (st.game) st.game.setRule(k, v);
+      st.hint = null;
       st.rules[k] = v;
       if (st.game) st.game.rules = st.rules;
       saveSettings(); if (st.game) renderAll();
@@ -435,7 +519,7 @@
 
     $('btnMenu').addEventListener('click', () => openOverlay('menuSheet'));
     $('mNew').addEventListener('click', () => { closeOverlay('menuSheet'); newGame(); });
-    $('mHome').addEventListener('click', () => { closeOverlay('menuSheet'); st.token++; st.thinking = false; refreshHome(); openOverlay('home'); });
+    $('mHome').addEventListener('click', () => { closeOverlay('menuSheet'); st.token++; st.thinking = false; clearHint(); stopSearches(); refreshHome(); openOverlay('home'); });
     $('mResign').addEventListener('click', () => {
       closeOverlay('menuSheet');
       const g = st.game;
@@ -450,6 +534,7 @@
       const g = st.game;
       if (g.ply === 0) return;
       st.token++; st.thinking = false; st.sel = null; st.targets = null;
+      clearHint(); stopSearches();
       g.cur.over = null;
       if (st.mode === 'pvp') g.undo(1);
       else { do { g.undo(1); } while (g.cur.turn !== st.human && g.ply > 0); }
@@ -462,8 +547,10 @@
       const g = st.game;
       if (!g.canPass()) return;
       st.begun = true; st.sel = null; st.targets = null;
+      clearHint();
       afterMove(g.pass(false));
     });
+    $('btnHint').addEventListener('click', requestHint);
     $('startBtn').addEventListener('click', () => { st.begun = true; renderAll(); maybeAI(); });
 
     window.addEventListener('resize', layout);
@@ -488,9 +575,10 @@
       if (s.human === HAN || s.human === CHO) st.human = s.human;
       if (s.mode) st.mode = s.mode;
       if (s.setupPref) st.setupPref = s.setupPref;
+      if (s.hintPref) st.hintPref = { cho: s.hintPref.cho | 0, han: s.hintPref.han | 0 };
     }
     wire(); layout();
-    st.game = new Game({ rules: st.rules, setup: { cho: st.setupPref, han: st.setupPref } });
+    st.game = new Game({ rules: st.rules, setup: { cho: st.setupPref, han: st.setupPref }, hints: st.hintPref });
     st.game.rules = st.rules;
     rebuildPieces(); renderAll();
     refreshHome();
