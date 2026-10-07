@@ -21,8 +21,11 @@ html, body {
   position: fixed; inset: 0; overflow: hidden; overscroll-behavior: none;
   background: var(--bg); color: var(--text);
   font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
-  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
 }
+#app, #board, #controls, .side, .overlay { touch-action: manipulation; }
+.panel { touch-action: pan-y; }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
 button:disabled { opacity: .35; cursor: default; }
 
@@ -60,7 +63,8 @@ button:disabled { opacity: .35; cursor: default; }
   touch-action: manipulation;
 }
 #marks, #pieces, #over { position: absolute; inset: 0; pointer-events: none; }
-.sp { position: absolute; background-repeat: no-repeat; transform: translate(-50%, -50%); will-change: left, top; }
+.sp { position: absolute; transform: translate(-50%, -50%); will-change: left, top; }
+.sp svg, .cap svg { display: block; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
 .piece { transition: left .18s ease, top .18s ease, opacity .2s ease, transform .2s ease; }
 .piece.dead { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
 .piece.flip { transform: translate(-50%, -50%) rotate(180deg); }
@@ -105,7 +109,7 @@ button:disabled { opacity: .35; cursor: default; }
 .side .pts { font-size: 12px; color: var(--muted); }
 .side .right { margin-left: auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; flex: 1 1 auto; }
 .caps { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
-.cap { width: 24px; height: 24px; margin-left: -9px; background-repeat: no-repeat; }
+.cap { width: 24px; height: 24px; margin-left: -9px; }
 .cap:first-child { margin-left: 0; }
 .setup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; width: 100%; max-width: 280px; }
 .setup button {

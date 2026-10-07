@@ -28,6 +28,7 @@ class El {
   get innerHTML() { return this._html || ''; }
   appendChild(c) { c.parent = this; this.children.push(c); return c; }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter((x) => x !== this); }
+  setAttributeNS(ns, k, v) { this.attrs[k] = v; }
   setAttribute(k, v) { this.attrs[k] = v; } getAttribute(k) { return this.attrs[k]; }
   addEventListener(t, f) { (this.handlers[t] = this.handlers[t] || []).push(f); }
   fire(t, ev) { (this.handlers[t] || []).forEach((f) => f(Object.assign({ button: 0, target: this }, ev))); }
@@ -57,6 +58,7 @@ const sandbox = {
   document: {
     getElementById: (id) => registry[id] || null,
     createElement: (t) => new El(t),
+    createElementNS: (ns, t) => new El(t),
     querySelectorAll: (sel) => (sel.includes('data-mode') ? modeBtns : sel.includes('.seg') ? sideBtns : sel.includes('data-close') ? closeBtns : []),
     addEventListener() {},
   },

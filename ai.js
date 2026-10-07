@@ -58,6 +58,7 @@
     for (let i = 0; i < 80; i++) this.bufs.push([]);
     this.forbid = rules.bikjang === false;
     this.scoreRule = !!rules.score;
+    this.qd = opts.qd || 6; // 정지 탐색(잡기 연장) 깊이
   }
 
   Search.prototype.facingValue = function () { // 마주봄(빅장) 즉시 종료 시 값 (side-to-move 기준)
@@ -125,7 +126,7 @@
     const pos = this.pos, color = pos.turn;
     const inChk = attacked(pos.b, pos.kingSq(color), -color);
     if (inChk) depth++; // 장군 연장
-    if (depth <= 0) return this.quiesce(alpha, beta, ply, 6);
+    if (depth <= 0) return this.quiesce(alpha, beta, ply, this.qd);
 
     const alpha0 = alpha;
     const idx = pos.hash & TT_MASK;
@@ -261,22 +262,28 @@
     return { move: bestMove, depth: doneDepth, score: bestScore, nodes: S.nodes };
   }
 
+  /* 쉬움: 2수 앞(내 수 + 상대 응수) + 짧은 잡기 확인까지만 보고, 점수에 약간의 잡음을 섞는다.
+   * - 공짜로 말을 내주거나 놓치는 실수는 거의 없지만, 3수 이상 깊은 전술은 못 본다.
+   * - 가끔(약 8%) 차선책을 골라 사람처럼 실수한다. */
   function easyMove(pos, cands, rules) {
-    if (Math.random() < 0.12) return cands[(Math.random() * cands.length) | 0];
-    const color = pos.turn;
-    let best = cands[0], bestSc = -Infinity;
+    const S = new Search(pos, rules, { deadline: Date.now() + 1500, qd: 2 });
+    const scored = [];
     for (const m of cands) {
       pos.make(m);
       let sc;
-      if (pos.facing()) sc = 0;
-      else sc = -evaluate(pos.b, pos.turn);
-      // 외통 직행 보너스
-      if (!pos.facing() && attacked(pos.b, pos.kingSq(pos.turn), color)) sc += 40;
+      if (pos.facing()) sc = -S.facingValue();
+      else sc = -S.search(1, -MATE - 1, MATE + 1, 1);
       pos.unmake();
-      sc += (Math.random() - 0.5) * 420; // 큰 잡음
-      if (sc > bestSc) { bestSc = sc; best = m; }
+      scored.push({ m, sc, noisy: sc + (Math.random() - 0.5) * 200 });
     }
-    return best;
+    tFlag.fill(0); // 얕은 탐색 결과가 어려움 탐색에 섞이지 않게 비운다
+    scored.sort((a, b) => b.noisy - a.noisy);
+    if (scored[0].sc > MATE - 100) { // 외통이 보이면 놓치지 않는다
+      scored.sort((a, b) => b.sc - a.sc);
+      return scored[0].m;
+    }
+    if (scored.length > 1 && Math.random() < 0.08) return scored[1].m;
+    return scored[0].m;
   }
 
   return { chooseMove, evaluate };

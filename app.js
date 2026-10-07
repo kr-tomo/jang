@@ -36,12 +36,29 @@
   }
 
   /* ---------- 스프라이트 ---------- */
+  /* 스프라이트 한 프레임을 인라인 SVG 로 만든다.
+   * 시트 전체를 <image> 로 깔고 viewBox 로 해당 프레임만 잘라 보여 주므로,
+   * background-position(%) 계산에 기대지 않아 브라우저마다 어긋나지 않는다. */
+  const SVGNS = 'http://www.w3.org/2000/svg', XLINK = 'http://www.w3.org/1999/xlink';
+  function spriteSvg(atlas, key) {
+    const f = atlas.frames[key];
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', f.x + ' ' + f.y + ' ' + f.w + ' ' + f.h);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    const img = document.createElementNS(SVGNS, 'image');
+    img.setAttribute('href', atlas.image);
+    img.setAttributeNS(XLINK, 'xlink:href', atlas.image);
+    img.setAttribute('x', '0'); img.setAttribute('y', '0');
+    img.setAttribute('width', String(atlas.sheetW)); img.setAttribute('height', String(atlas.sheetH));
+    img.setAttribute('preserveAspectRatio', 'none');
+    svg.appendChild(img);
+    return svg;
+  }
   function applySprite(el, atlas, key, sizeCells) {
     const f = atlas.frames[key], B = T.board;
-    el.style.backgroundImage = 'url(' + atlas.image + ')';
-    el.style.backgroundSize = (atlas.sheetW / f.w * 100) + '% ' + (atlas.sheetH / f.h * 100) + '%';
-    const px = atlas.sheetW - f.w, py = atlas.sheetH - f.h;
-    el.style.backgroundPosition = (px ? f.x / px * 100 : 0) + '% ' + (py ? f.y / py * 100 : 0) + '%';
+    el.appendChild(spriteSvg(atlas, key));
     const w = B.cell * atlas.scale * (sizeCells || 1);
     el.style.width = (w / B.width * 100) + '%';
     el.style.height = (w * f.h / f.w / B.height * 100) + '%';
@@ -189,10 +206,7 @@
         for (const p of (color === CHO ? caps.cho : caps.han)) {
           const d = document.createElement('div');
           d.className = 'cap';
-          const f = T.pieces.frames[pieceKey(p)], a = T.pieces;
-          d.style.backgroundImage = 'url(' + a.image + ')';
-          d.style.backgroundSize = (a.sheetW / f.w * 100) + '% ' + (a.sheetH / f.h * 100) + '%';
-          d.style.backgroundPosition = ((a.sheetW - f.w) ? f.x / (a.sheetW - f.w) * 100 : 0) + '% ' + ((a.sheetH - f.h) ? f.y / (a.sheetH - f.h) * 100 : 0) + '%';
+          d.appendChild(spriteSvg(T.pieces, pieceKey(p)));
           capsEl.appendChild(d);
         }
       }
@@ -486,6 +500,26 @@
     });
   }
 
+  /* ---------- 확대(핀치·더블탭) 방지 ---------- */
+  function preventZoom() {
+    const opt = { passive: false };
+    const stop = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', stop);
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach((n) => document.addEventListener(n, stop, opt)); // iOS 핀치
+    document.addEventListener('touchmove', (e) => {                                                           // 두 손가락
+      if ((e.touches && e.touches.length > 1) || (e.scale && e.scale !== 1)) e.preventDefault();
+    }, opt);
+    let lastEnd = 0;                                                                                          // 빠른 두 번 탭
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      const onBtn = e.target && e.target.closest && e.target.closest('button');
+      if (now - lastEnd < 350 && !onBtn) e.preventDefault();
+      lastEnd = now;
+    }, opt);
+    document.addEventListener('dblclick', stop, opt);
+    document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, opt);                   // 데스크톱 핀치/ctrl+휠
+  }
+
   /* ---------- 배치 ---------- */
   function layout() {
     const app = $('app'), cs = getComputedStyle(app);
@@ -556,8 +590,7 @@
     window.addEventListener('resize', layout);
     window.addEventListener('orientationchange', () => setTimeout(layout, 120));
     if (window.visualViewport) window.visualViewport.addEventListener('resize', layout);
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
-    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    preventZoom();
   }
 
   function refreshHome() {

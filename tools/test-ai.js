@@ -69,8 +69,8 @@ function tally(a, b, games, ply, ms) {
 }
 const t1 = tally('hard', 'random', 4, 160, 120);
 ok(t1.wa >= 3, '어려움은 무작위를 이긴다');
-const t2 = tally('easy', 'random', 6, 160, 50);
-ok(t2.wa >= t2.wb, '쉬움은 무작위보다 낫다');
-const t3 = tally('hard', 'easy', 4, 160, 120);
-ok(t3.wa >= t3.wb, '어려움은 쉬움보다 낫다');
+const t2 = tally('easy', 'random', 8, 160, 50);
+ok(t2.wa >= 7, '쉬움은 무작위를 거의 이긴다');
+const t3 = tally('hard', 'easy', 6, 200, 120);
+ok(t3.wa > t3.wb, '어려움은 쉬움보다 확실히 강하다 (' + t3.wa + ':' + t3.wb + ')');
 process.exit(fail ? 1 : 0);
