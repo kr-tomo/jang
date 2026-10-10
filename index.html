@@ -32,7 +32,9 @@
     <button id="btnUndo" class="ctl" aria-label="무르기"><span class="ico">↶</span><span class="lbl">무르기</span></button>
     <button id="btnPass" class="ctl" aria-label="한수쉼"><span class="ico">⏭</span><span class="lbl">한수쉼</span></button>
     <button id="btnHint" class="ctl hint" aria-label="훈수" style="display:none"><span class="ico">💡</span><span class="lbl" id="hintLbl">훈수</span></button>
-    <button id="btnRules" class="ctl" aria-label="규칙 옵션"><span class="ico">⚙</span><span class="lbl">옵션</span></button>
+    <button id="btnTurn" class="ctl" aria-label="차례 바꾸기"><span class="ico">⇄</span><span class="lbl" id="turnLbl">차례: 초</span></button>
+    <button id="btnEdit" class="ctl" aria-label="편집 모드" aria-pressed="false"><span class="ico">✎</span><span class="lbl" id="editLbl">편집</span></button>
+        <button id="btnRules" class="ctl" aria-label="규칙 옵션"><span class="ico">⚙</span><span class="lbl">옵션</span></button>
     <button id="btnMenu" class="ctl" aria-label="메뉴"><span class="ico">☰</span><span class="lbl">메뉴</span></button>
   </nav>
 </div>
@@ -80,6 +82,15 @@
     <button class="list-btn" id="mHome">모드 바꾸기</button>
     <button class="list-btn danger" id="mResign">기권</button>
     <button class="primary" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 말 놓기 (편집 모드) -->
+<div id="pieceSheet" class="overlay">
+  <div class="panel sheet narrow">
+    <h2>놓을 말 선택</h2>
+    <div id="palette"></div>
+    <button class="ghost" data-close>취소</button>
   </div>
 </div>
 

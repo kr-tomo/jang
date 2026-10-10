@@ -19,6 +19,7 @@
     setupPref: 'NEEN',
     hintPref: { cho: 0, han: 0 },   // 진영별 훈수 횟수 (다음 판에도 기억)
     hint: null, hintBusy: false, hintId: 0,
+    editing: false, editBoard: null, editTurn: CHO, editSq: null,
     cbs: {}, reqId: 0,
     worker: null, workerOk: true,
   };
@@ -74,6 +75,8 @@
     el.style.top = ((B.originY + r * B.cell) / B.height * 100) + '%';
   }
   const pieceKey = (p) => (p > 0 ? 'cho.' : 'han.') + J.TYPE_NAME[Math.abs(p)];
+  const curBoard = () => (st.editing ? st.editBoard : st.game.cur.board);
+  const curTurn = () => (st.editing ? st.editTurn : st.game.cur.turn);
   function sideAtTop() { return st.flip ? CHO : HAN; }
 
   /* ---------- 말 그리기 ---------- */
@@ -89,7 +92,7 @@
   function rebuildPieces() {
     $('pieces').innerHTML = '';
     els.fill(null);
-    const b = st.game.cur.board;
+    const b = curBoard();
     for (let s = 0; s < 90; s++) if (b[s]) els[s] = makePiece(b[s], s);
   }
   function animateMove(from, to) {
@@ -112,6 +115,7 @@
   }
   function renderMarks() {
     $('marks').innerHTML = ''; $('over').innerHTML = '';
+    if (st.editing) return;
     const g = st.game, c = g.cur;
     if (c.last) { addMarker('marks', 'from', c.last[0]); addMarker('marks', 'to', c.last[1]); }
     if (c.check && !c.over) {
@@ -158,12 +162,12 @@
   function setupOpen() { return !st.game.started && !st.begun; }
 
   function renderInfo() {
-    const g = st.game, c = g.cur, open = setupOpen();
+    const g = st.game, c = g.cur, open = setupOpen() && !st.editing;
     const caps = g.captured();
-    const pts = J.materialPoints(c.board);
+    const pts = J.materialPoints(curBoard());
     for (const color of [CHO, HAN]) {
       const root = $(color === CHO ? 'cho' : 'han');
-      root.classList.toggle('turn', !c.over && c.turn === color && !open);
+      root.classList.toggle('turn', st.editing ? st.editTurn === color : (!c.over && c.turn === color && !open));
       root.classList.toggle('setupOpen', open);
       const top = sideAtTop() === color;
       root.style.gridArea = top ? 'top' : 'bot';
@@ -172,7 +176,8 @@
       root.querySelector('.name').textContent = NAME[color] + who;
       const sub = root.querySelector('.sub');
       let txt = '', cls = 'sub';
-      if (open) txt = '상차림';
+      if (st.editing) txt = (st.editTurn === color ? '차례 · ' : '') + '편집 중';
+      else if (open) txt = '상차림';
       else if (!c.over && c.turn === color) {
         if (st.thinking && !isHumanSide(color)) txt = '생각 중…';
         else if (st.hintBusy) txt = '훈수 생각 중…';
@@ -225,7 +230,12 @@
     $('hintLbl').textContent = '훈수 ' + (isHumanSide(c.turn) ? g.hintsLeft(c.turn) : 0);
     $('btnHint').disabled = !(humanTurn && !st.hintBusy && !aiWait && g.canHint());
     const aiFirst = st.mode !== 'pvp' && st.human === HAN;
-    $('startBtn').hidden = !(aiFirst && setupOpen());
+    $('startBtn').hidden = !(aiFirst && setupOpen()) || st.editing;
+    $('app').classList.toggle('editing', st.editing);
+    $('btnEdit').classList.toggle('on', st.editing);
+    $('btnEdit').setAttribute('aria-pressed', st.editing ? 'true' : 'false');
+    $('editLbl').textContent = st.editing ? '편집 끝' : '편집';
+    $('turnLbl').textContent = '차례: ' + NAME[st.editTurn];
   }
 
   function renderAll(opts) {
@@ -400,8 +410,10 @@
   function onBoardPointer(e) {
     if (!st.game || e.button > 0) return;
     const g = st.game, c = g.cur;
-    if (c.over || st.thinking || !isHumanSide(c.turn)) return;
-    if (st.mode !== 'pvp' && st.human === HAN && !st.begun) return;
+    if (!st.editing) {
+      if (c.over || st.thinking || !isHumanSide(c.turn)) return;
+      if (st.mode !== 'pvp' && st.human === HAN && !st.begun) return;
+    }
     const rect = $('board').getBoundingClientRect(), B = T.board, k = rect.width / B.width;
     const x = (e.clientX - rect.left) / k, y = (e.clientY - rect.top) / k;
     let c0 = Math.round((x - B.originX) / B.cell), r0 = Math.round((y - B.originY) / B.cell);
@@ -409,12 +421,71 @@
     let r = r0, col = c0;
     if (st.flip) { r = 9 - r; col = 8 - col; }
     const sq = J.sqOf(r, col);
+    if (st.editing) { editTap(sq); return; }
     if (st.sel != null && st.targets.includes(sq)) { applyMove(st.sel, sq); return; }
     const p = c.board[sq];
     if (p && (p > 0 ? CHO : HAN) === c.turn && sq !== st.sel) {
       st.sel = sq; st.targets = g.legalFrom(sq);
     } else { st.sel = null; st.targets = null; }
     renderMarks();
+  }
+
+  /* ---------- 편집 모드 ---------- */
+  const PAL_TYPES = [J.R, J.C, J.N, J.E, J.G, J.P];
+  const PAL_NAME = { 2: '차', 3: '포', 4: '마', 5: '상', 6: '사' };
+  function buildPalette() {
+    const pal = $('palette'); pal.innerHTML = '';
+    [CHO, HAN].forEach((side) => {
+      const row = document.createElement('div'); row.className = 'pal-row'; row.dataset.side = side === CHO ? 'cho' : 'han';
+      const lab = document.createElement('div'); lab.className = 'pal-side'; lab.textContent = HANJA[side]; row.appendChild(lab);
+      PAL_TYPES.forEach((t) => {
+        const b = document.createElement('button'); b.className = 'pal-btn';
+        b.setAttribute('aria-label', NAME[side] + ' ' + (t === J.P ? (side === CHO ? '졸' : '병') : PAL_NAME[t]));
+        b.appendChild(spriteSvg(T.pieces, (side === CHO ? 'cho.' : 'han.') + J.TYPE_NAME[t]));
+        b.addEventListener('click', () => placeEditPiece(side * t));
+        row.appendChild(b);
+      });
+      pal.appendChild(row);
+    });
+  }
+  function setEditing(on) {
+    if (on === st.editing) return;
+    if (on) {
+      st.token++; st.thinking = false; clearHint(); stopSearches();    // 진행 중인 컴퓨터 계산·훈수 중단
+      st.sel = null; st.targets = null;
+      st.editBoard = new Int8Array(st.game.cur.board); st.editTurn = st.game.cur.turn; st.editSq = null;
+      st.editing = true;
+      rebuildPieces(); renderMarks(); renderInfo(); renderControls();
+      toast('편집: 말을 누르면 빼고, 빈 곳을 누르면 놓아요');
+      return;
+    }
+    const res = st.game.commitEdit(st.editBoard, st.editTurn);
+    if (!res.ok) {
+      toast(res.reason === 'enemyCheck' ? '차례가 아닌 쪽 장이 장군 상태예요 · 말이나 차례를 바꿔 주세요' : '장이 없어요', true);
+      return;
+    }
+    st.editing = false; st.editBoard = null; closeOverlay('pieceSheet');
+    rebuildPieces();
+    if (res.unchanged) { renderAll(); maybeAI(); return; }
+    st.begun = true;
+    toast('편집한 판으로 이어서 둡니다');
+    afterMove(res);
+  }
+  function editTap(sq) {
+    const p = st.editBoard[sq];
+    if (p) {
+      if (Math.abs(p) === J.K) { toast('장은 뺄 수 없어요', true); return; }
+      st.editBoard[sq] = 0;
+      rebuildPieces(); renderInfo();
+    } else {
+      st.editSq = sq; openOverlay('pieceSheet');
+    }
+  }
+  function placeEditPiece(piece) {
+    closeOverlay('pieceSheet');
+    if (st.editing && st.editSq != null && !st.editBoard[st.editSq]) st.editBoard[st.editSq] = piece;
+    st.editSq = null;
+    rebuildPieces(); renderInfo();
   }
 
   function chooseSetup(color, id) {
@@ -429,6 +500,7 @@
   function randomSetup() { return J.SETUPS[(Math.random() * 4) | 0].id; }
   function newGame() {
     st.token++; st.thinking = false; st.sel = null; st.targets = null; st.hint = null; st.hintBusy = false; st.hintId++; stopSearches();
+    st.editing = false; st.editBoard = null;
     st.flip = st.mode !== 'pvp' && st.human === HAN;
     const hints = { cho: 0, han: 0 };
     if (st.mode === 'pvp') { hints.cho = st.hintPref.cho; hints.han = st.hintPref.han; }
@@ -452,6 +524,7 @@
       st.game.rules = st.rules; // 현재 규칙 옵션 사용
       st.begun = !!d.begun || st.game.started;
       st.token++; st.thinking = false; st.sel = null; st.targets = null; st.hint = null; st.hintBusy = false; st.hintId++; stopSearches();
+      st.editing = false; st.editBoard = null;
       rebuildPieces(); renderAll();
       closeOverlay('home');
       if (st.game.cur.over) setTimeout(() => showResult(st.game.cur.over), 300);
@@ -553,7 +626,7 @@
 
     $('btnMenu').addEventListener('click', () => openOverlay('menuSheet'));
     $('mNew').addEventListener('click', () => { closeOverlay('menuSheet'); newGame(); });
-    $('mHome').addEventListener('click', () => { closeOverlay('menuSheet'); st.token++; st.thinking = false; clearHint(); stopSearches(); refreshHome(); openOverlay('home'); });
+    $('mHome').addEventListener('click', () => { closeOverlay('menuSheet'); st.token++; st.thinking = false; clearHint(); stopSearches(); if (st.editing) { st.editing = false; st.editBoard = null; rebuildPieces(); } renderAll(); refreshHome(); openOverlay('home'); });
     $('mResign').addEventListener('click', () => {
       closeOverlay('menuSheet');
       const g = st.game;
@@ -585,6 +658,9 @@
       afterMove(g.pass(false));
     });
     $('btnHint').addEventListener('click', requestHint);
+    $('btnEdit').addEventListener('click', () => setEditing(!st.editing));
+    $('btnTurn').addEventListener('click', () => { if (!st.editing) return; st.editTurn = -st.editTurn; renderInfo(); renderControls(); });
+    buildPalette();
     $('startBtn').addEventListener('click', () => { st.begun = true; renderAll(); maybeAI(); });
 
     window.addEventListener('resize', layout);

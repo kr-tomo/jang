@@ -156,6 +156,52 @@ const tap = (r, c, flip) => {
   toggles[0].fire('click');
   ok(dbg.st.rules.bikjang === false, '빅장 옵션 끔 반영');
   toggles[0].fire('click');
+  // ---------- 편집 모드 ----------
+  modeBtns.find((b) => b.dataset.mode === 'pvp').fire('click');
+  const g0 = dbg.st.game;
+  ok(g0.ply === 0 && !dbg.st.editing, '2인 새 판');
+  registry.btnEdit.fire('click');
+  ok(dbg.st.editing && registry.app.classList.contains('editing') && registry.btnEdit.classList.contains('on'), '편집 모드 켬 (스위치 on)');
+  const cnt = () => registry.pieces.children.length;
+  ok(cnt() === 32, '편집 진입 시 말 32개');
+  tap(7, 1);                                                    // 초 포 빼기
+  ok(cnt() === 31 && dbg.st.editBoard[7 * 9 + 1] === 0, '말을 누르면 판에서 뺀다');
+  tap(8, 4);                                                    // 초 장
+  ok(cnt() === 31 && dbg.st.editBoard[8 * 9 + 4] === 1, '장은 뺄 수 없다');
+  tap(7, 1);                                                    // 빈 곳
+  ok(registry.pieceSheet.classList.contains('show'), '빈 곳을 누르면 말 선택 창');
+  const pal = registry.palette.all().filter((c) => c.classList.contains('pal-btn'));
+  ok(pal.length === 12, '선택 창: 양 팀 말 12종 (장 제외) = ' + pal.length);
+  ok(!pal.some((b) => /장/.test(b.attrs['aria-label'] || '')), '선택 창에 장 없음');
+  pal.find((b) => b.attrs['aria-label'] === '한 차').fire('click');   // 초 진영 자리에 한 차 놓기
+  ok(dbg.st.editBoard[7 * 9 + 1] === -2 && cnt() === 32 && !registry.pieceSheet.classList.contains('show'), '선택한 말(한 차)이 그 팀 말로 놓인다');
+  tap(5, 4); pal.find((b) => b.attrs['aria-label'] === '초 차').fire('click'); // 초 차 추가 (기본 구성 무관)
+  ok(dbg.st.editBoard[5 * 9 + 4] === 2, '초 차를 하나 더 놓을 수 있다');
+  // 장군 상태로 끝내려 하면 거부
+  tap(3, 4);                                                    // 한 졸(병) 제거 → 초 차가 한 장 직접 공격
+  registry.btnEdit.fire('click');
+  ok(dbg.st.editing, '차례 아닌 쪽 장이 장군이면 편집 모드 유지');
+  registry.btnTurn.fire('click');                               // 차례를 한으로
+  ok(dbg.st.editTurn === -1, '차례 바꾸기');
+  registry.btnEdit.fire('click');
+  ok(!dbg.st.editing && !registry.app.classList.contains('editing'), '편집 끄면 바로 이어서 진행');
+  ok(dbg.st.game.ply === 1 && dbg.st.game.cur.turn === -1 && dbg.st.game.cur.check, '편집한 상태에서 게임 재개 (한 차례, 장군)');
+  ok(cnt() === 32 && dbg.st.game.cur.board[7 * 9 + 1] === -2, '편집 결과가 판에 반영 (말 ' + cnt() + '개)');
+  // 편집 후 한이 응수할 수 있다 (장군 회피)
+  const lm = dbg.st.game.legal();
+  ok(lm.length > 0, '편집 후 합법수 존재 (' + lm.length + ')');
+  // 컴퓨터 대국 중 편집: 계산 중단 후 편집 완료 시 재개
+  dbg.st.human = 1; modeBtns.find((b) => b.dataset.mode === 'easy').fire('click');
+  tap(6, 0); tap(5, 0);                                          // 내 수 → 컴퓨터 생각 시작
+  registry.btnEdit.fire('click');                                // 즉시 편집 진입
+  ok(dbg.st.editing && !dbg.st.thinking, '편집 진입 시 컴퓨터 계산 중단');
+  const plyBefore = dbg.st.game.ply;
+  await sleep(1200);
+  ok(dbg.st.game.ply === plyBefore, '편집 중에는 컴퓨터가 두지 않는다');
+  registry.btnEdit.fire('click');                                // 변경 없이 종료
+  await sleep(1300);
+  ok(!dbg.st.editing && dbg.st.game.ply === plyBefore + 1, '편집 종료 후 컴퓨터가 이어서 둔다 (ply=' + dbg.st.game.ply + ')');
+
   // 저장/이어하기
   ok(!!store['janggi.save.v1'], '게임 자동 저장');
   console.log(fail ? 'APP TESTS FAILED' : 'app tests passed');

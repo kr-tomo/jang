@@ -195,3 +195,19 @@ h2 { margin: 0; font-size: 20px; } h3 { margin: 6px 0 0; font-size: 14px; color:
 #app.land .setup .hintTog { grid-column: 1 / -1; }
 .ctl.hint .lbl { color: #7fd6ea; }
 .ctl.hint:not(:disabled) { border-color: #2f8fa8; }
+
+/* ---------- 편집 모드 ---------- */
+#btnTurn { display: none; }
+#app.editing #btnTurn { display: flex; }
+#app.editing #btnUndo, #app.editing #btnPass, #app.editing #btnHint, #app.editing #btnRules, #app.editing #btnMenu { display: none !important; }
+#app.editing #board { outline: 3px dashed var(--gold); outline-offset: 4px; }
+.ctl.on { background: var(--gold); border-color: var(--gold); color: #2a1d06; }
+.ctl.on .lbl { color: #2a1d06; }
+#toast { max-width: 92%; white-space: normal; text-align: center; }
+#palette { display: grid; gap: 10px; }
+.pal-row { display: grid; grid-template-columns: 28px repeat(6, 1fr); gap: 6px; align-items: center; }
+.pal-side { font-weight: 900; font-size: 15px; text-align: center; }
+.pal-row[data-side="cho"] .pal-side { color: var(--cho); } .pal-row[data-side="han"] .pal-side { color: var(--han); }
+.pal-btn { aspect-ratio: 1; padding: 0; border-radius: 12px; background: #34291b; border: 1px solid var(--line); overflow: hidden; }
+.pal-btn svg { display: block; width: 100%; height: 100%; }
+.pal-btn:active { background: #4a3b27; }

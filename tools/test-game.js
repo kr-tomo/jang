@@ -193,6 +193,55 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL:', m); } 
   g4.setHint(m); g4.setRule('bikjang', false);
   ok(g4.currentHint() === null, '규칙 변경 시 훈수 해제');
 }
+// 8c. 편집 모드 확정 (commitEdit)
+{
+  const g = new Game({ rules: { bikjang: true, pass: true, repeat: true } });
+  g.move(sq(6, 0), sq(5, 0));                        // 한 차례
+  const base = new Int8Array(g.cur.board);
+  ok(g.commitEdit(base, g.cur.turn).unchanged === true && g.ply === 1, '변경 없으면 상태 유지');
+  // 말 빼기 + 임의 배치 (기본 구성 무관: 초 차를 3개로 만들기)
+  const b = new Int8Array(base);
+  b[sq(7, 1)] = 0;                                   // 초 포 제거
+  b[sq(5, 4)] = CHO * R; b[sq(5, 5)] = CHO * R;      // 초 차 추가 (총 4대)
+  let r = g.commitEdit(b, HAN);
+  ok(r.ok && g.ply === 2 && g.cur.turn === HAN && g.cur.board[sq(5, 5)] === CHO * R && g.cur.board[sq(7, 1)] === 0, '편집한 판으로 진행');
+  const rooks = Array.from(g.cur.board).filter((x) => x === CHO * R).length;
+  ok(rooks === 4, '기본 구성과 무관하게 배치 (초 차 ' + rooks + '대)');
+  ok(g.legal().length > 0 && g.move(...(() => { const m = g.legal()[0]; return [J.mvFrom(m), J.mvTo(m)]; })()).ok, '편집 후 이어서 수 두기');
+  g.undo(2);
+  ok(g.ply === 1 && g.cur.board[sq(7, 1)] === CHO * C, '무르기로 편집 전 상태 복귀');
+  // 장군 중인 상대 장 (차례가 아닌 쪽 장이 공격받음) → 거부
+  const e = new Int8Array(base);
+  e[sq(3, 4)] = 0; e[sq(5, 4)] = CHO * R;           // 초 차가 한 장(1,4)을 직접 노림
+  r = g.commitEdit(e, CHO);
+  ok(!r.ok && r.reason === 'enemyCheck' && g.ply === 1, '차례 아닌 쪽 장이 장군이면 거부');
+  r = g.commitEdit(e, HAN);
+  ok(r.ok && r.check && !r.over, '차례를 바꾸면 장군 상태로 이어짐');
+  // 외통 감지: 한 장 외통 구성
+  const g2 = new Game({ rules: { bikjang: true } });
+  const m = new Int8Array(90);
+  m[sq(0, 4)] = HAN * K; m[sq(9, 4)] = CHO * K; m[sq(8, 3)] = CHO * P;
+  m[sq(0, 0)] = CHO * R; m[sq(1, 0)] = CHO * R;     // 두 차가 줄을 막아 한 장 외통? (사/장 이동 칸 점검)
+  m[sq(1, 4)] = CHO * R;                            // 장 정면 차 (장군)
+  m[sq(0, 3)] = CHO * R; m[sq(0, 5)] = CHO * R;     // 양옆 차
+  r = g2.commitEdit(m, HAN);
+  ok(r.ok && r.over && r.over.type === 'checkmate' && r.over.winner === CHO, '편집 후 외통이면 즉시 종료');
+  // 종료된 판도 편집 후 이어가기
+  const m2 = new Int8Array(m); m2[sq(1, 4)] = 0; m2[sq(0, 3)] = 0; m2[sq(0, 5)] = 0; m2[sq(0, 0)] = 0; m2[sq(9, 4)] = 0; m2[sq(9, 3)] = CHO * K;
+  r = g2.commitEdit(m2, HAN);
+  ok(r.ok && !r.over && g2.cur.over === null, '편집으로 종료 상태 해소');
+  // 빅장 상태 편집
+  const f = new Int8Array(90); f[sq(0, 4)] = HAN * K; f[sq(9, 4)] = CHO * K; f[sq(5, 0)] = CHO * R;
+  const g3 = new Game({ rules: { bikjang: true } });
+  r = g3.commitEdit(f, CHO);
+  ok(r.ok && r.over && r.over.type === 'bikjang', '마주 본 장 편집: 빅장 켬 → 종료');
+  const g4 = new Game({ rules: { bikjang: false } });
+  r = g4.commitEdit(f, CHO);
+  ok(r.ok && !r.over, '마주 본 장 편집: 빅장 끔 → 이어서 진행');
+  // 직렬화
+  const g5 = Game.deserialize(JSON.parse(JSON.stringify(g.serialize())));
+  ok(J.keyOf(g5.cur.board, g5.cur.turn) === J.keyOf(g.cur.board, g.cur.turn), '편집 후 직렬화 복원');
+}
 // 9. 레이아웃: 다양한 화면 비율에서 넘침 없음, 판이 최대
 {
   const R_ = 920 / 1020;

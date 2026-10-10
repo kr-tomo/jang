@@ -142,6 +142,39 @@
       return { ok: true, mover, captured, check: next.check, over: next.over, needPass, pass: isPass, forced: !!forced, hintUsed };
     }
 
+    /* 편집 모드 확정: 편집한 판을 새 국면으로 이어 붙인다 (무르기로 편집 전으로 돌아갈 수 있다).
+     * 반환: {ok, unchanged} 또는 {ok:false, reason}. 성공 시 _apply 와 같은 필드(check/over/needPass)를 돌려준다. */
+    commitEdit(board, turn) {
+      const c = this.cur;
+      let same = turn === c.turn;
+      for (let i = 0; same && i < 90; i++) if (board[i] !== c.board[i]) same = false;
+      if (same) return { ok: true, unchanged: true };
+      const b = new Int8Array(board);
+      const pos = J.Position.fromArray(b, turn);
+      if (pos.kc < 0 || pos.kh < 0) return { ok: false, reason: 'king' };
+      // 차례가 아닌 쪽의 장이 이미 공격받고 있으면 장을 잡을 수 있는 불가능한 국면
+      if (J.attacked(b, pos.kingSq(-turn), turn)) return { ok: false, reason: 'enemyCheck' };
+      const next = {
+        board: b, turn, passStreak: 0, last: null, over: null, check: false, passed: false,
+        key: J.keyOf(b, turn), hints: Object.assign({ cho: 0, han: 0 }, c.hints),
+      };
+      this.states.push(next);
+      this.hint = null;
+      if (this.epoch >= 0) this.epoch = this.states.length - 1; // 반복 집계는 편집한 국면부터 다시
+      let needPass = false;
+      if (pos.facing() && this.rules.bikjang) {
+        next.over = this.rules.score ? this._scoreResult('bikjang-score') : { type: 'bikjang', winner: 0 };
+      } else {
+        const chk = pos.inCheck();
+        next.check = chk;
+        if (!J.legalMoves(pos, this.rules).length) {
+          if (chk) next.over = { type: 'checkmate', winner: -turn };
+          else needPass = true;
+        }
+      }
+      return { ok: true, mover: -turn, check: next.check, over: next.over, needPass, pass: false, forced: false, hintUsed: false, edited: true };
+    }
+
     resign(color) {
       const c = this.cur;
       if (c.over) return false;
